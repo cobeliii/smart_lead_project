@@ -1,28 +1,42 @@
 package org.cobeliii.smartleadqualification.lead;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import org.cobeliii.smartleadqualification.enums.Type;
 import org.cobeliii.smartleadqualification.enums.UrgencyLevel;
+import org.cobeliii.smartleadqualification.message.Message;
+
 
 @Entity
 public class Lead {
     @Id
     @SequenceGenerator(name = "lead_id_sequence",
-            sequenceName = "lead_id_sequence")
+            sequenceName = "lead_id_sequence", allocationSize = 1)
     @GeneratedValue(strategy = GenerationType.SEQUENCE,
                     generator = "lead_id_sequence")
     private Long id;
+
     @NotBlank
     @Column(nullable = false, length = 100)
     private String title;
+
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private Type type;
+
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private UrgencyLevel urgencyLevel;
+
     @NotBlank
     @Column(nullable = false, length = 1500)
     private String description;
+
+    @JsonIgnore
+    @OneToOne(optional = false)
+    @JoinColumn(name = "message_id", nullable = false, unique = true)
+    private Message message;
 
     public Lead() {
     }
@@ -72,5 +86,13 @@ public class Lead {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public Message getMessage() {
+        return message;
+    }
+
+    public void setMessage(Message message) {
+        this.message = message;
     }
 }

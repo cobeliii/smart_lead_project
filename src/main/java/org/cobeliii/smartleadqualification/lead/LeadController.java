@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@RequestMapping("api/v1/lead")
+@RequestMapping("api/v1/leads")
 public class LeadController {
     private final LeadService leadService;
 

@@ -8,10 +8,11 @@ import org.cobeliii.smartleadqualification.config.HuggingFaceRequest;
 import org.cobeliii.smartleadqualification.config.HuggingFaceService;
 import org.cobeliii.smartleadqualification.lead.Lead;
 import org.cobeliii.smartleadqualification.lead.LeadQualificationResult;
-import org.cobeliii.smartleadqualification.lead.LeadService;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.util.List;
 
@@ -20,32 +21,30 @@ public class MessageService {
     private final MessageRepository messageRepository;
     private final HuggingFaceService huggingFaceService;
     private final HuggingFaceProperties huggingFaceProperties;
-    private final LeadService leadService;
     private final ObjectMapper objectMapper;
 
     public MessageService(
             MessageRepository messageRepository,
             HuggingFaceService huggingFaceService,
             HuggingFaceProperties huggingFaceProperties,
-            LeadService leadService,
             ObjectMapper objectMapper
     ) {
         this.messageRepository = messageRepository;
         this.huggingFaceService = huggingFaceService;
         this.huggingFaceProperties = huggingFaceProperties;
-        this.leadService = leadService;
         this.objectMapper = objectMapper;
     }
 
+    @Transactional
     public LeadQualificationResult createMessage(Message message) {
-        messageRepository.save(message);
+        Message savedMessage = messageRepository.save(message);
 
         HuggingFaceRequest request = HuggingFaceRequest.leadQualificationRequest(
                 huggingFaceProperties.chat().model(),
-                message.getMessage()
+                savedMessage.getMessage()
         );
 
-        ChatCompletionResponse response = huggingFaceService.completion(request);
+        ChatCompletionResponse response = getHuggingFaceResponse(request);
 
         LeadQualificationResult result = parseLeadQualificationResult(response.content());
 
@@ -57,7 +56,8 @@ public class MessageService {
                     result.description()
             );
 
-            leadService.createLead(lead);
+            savedMessage.setLead(lead);
+            messageRepository.save(savedMessage);
         }
 
         return result;
@@ -67,10 +67,35 @@ public class MessageService {
         Pageable pageable = PageRequest.of(0, 10);
         return messageRepository.findAll(pageable)
                 .map(m -> new MessageDto(m.getMessage()))
-                .stream().toList();
+                .stream()
+                .toList();
+    }
+
+    private ChatCompletionResponse getHuggingFaceResponse(HuggingFaceRequest request) {
+        try {
+            ChatCompletionResponse response = huggingFaceService.completion(request);
+
+            if (response == null) {
+                throw new IllegalStateException("Hugging Face returned a null response.");
+            }
+
+            return response;
+        } catch (RestClientResponseException exception) {
+            throw new IllegalStateException(
+                    "Hugging Face request failed. Status: "
+                            + exception.getStatusCode()
+                            + ". Response body: "
+                            + exception.getResponseBodyAsString(),
+                    exception
+            );
+        }
     }
 
     private LeadQualificationResult parseLeadQualificationResult(String content) {
+        if (content == null || content.isBlank()) {
+            throw new IllegalStateException("Hugging Face returned an empty message content.");
+        }
+
         try {
             String json = extractJson(content);
             return objectMapper.readValue(json, LeadQualificationResult.class);

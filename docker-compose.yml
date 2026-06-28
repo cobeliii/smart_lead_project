@@ -1,0 +1,39 @@
+services:
+  app:
+    container_name: smart-lead-qualification-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5433/smart_lead_qualification
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: password
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    networks:
+      - smart-lead-network
+    restart: unless-stopped
+
+  postgres:
+    container_name: smart-lead-qualification-db
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: smart_lead_qualification
+    ports:
+      - "5333:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - smart-lead-network
+
+networks:
+  smart-lead-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
